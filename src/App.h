@@ -39,7 +39,10 @@ private:
     void Resize();
 
 private:
-    float m_PushConstantData[4] = {0};
+    struct {
+        float data[4];
+        float time;
+    } m_PushConstantData = {};
 
     GLFWwindow* m_Window = nullptr;
     int m_Width, m_Height;
@@ -66,6 +69,7 @@ private:
     VkCommandBuffer m_ComputeCmdBuffs[FRAMES_IN_FLIGHT];
     VkFence m_InFlightFences[FRAMES_IN_FLIGHT];
     VkSemaphore m_ImageAvailable[FRAMES_IN_FLIGHT];
+    VkSemaphore m_ComputeFinished[FRAMES_IN_FLIGHT];
     std::vector<VkSemaphore> m_RenderFinished;
 
     VkPipelineLayout m_PipelineLayout = nullptr;
@@ -82,7 +86,7 @@ private:
         VkDeviceMemory memory = nullptr;
         VkImageView view = nullptr;
         VkSampler sampler = nullptr;
-        u32 width = 800, height = 600;
+        u32 width = 1290, height = 720;
     } m_StorageImages[FRAMES_IN_FLIGHT];
 
     u32 m_ImageIdx = 0;

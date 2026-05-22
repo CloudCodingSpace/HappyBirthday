@@ -276,6 +276,7 @@ App::App() : m_Width{800}, m_Height{600}
         {
             VK_CHECK(vkCreateFence(m_Device, &fenceInfo, nullptr, &m_InFlightFences[i]));
             VK_CHECK(vkCreateSemaphore(m_Device, &semaInfo, nullptr, &m_ImageAvailable[i]));
+            VK_CHECK(vkCreateSemaphore(m_Device, &semaInfo, nullptr, &m_ComputeFinished[i]));
         }
         
         m_RenderFinished.resize(m_ScImages.size());
@@ -586,6 +587,8 @@ App::~App()
         vkDestroyFence(m_Device, fence, nullptr);
     for(auto& sema : m_ImageAvailable)
         vkDestroySemaphore(m_Device, sema, nullptr);
+    for(auto& sema : m_ComputeFinished)
+        vkDestroySemaphore(m_Device, sema, nullptr);
     for(auto& sema : m_RenderFinished)
         vkDestroySemaphore(m_Device, sema, nullptr);
 
@@ -618,8 +621,32 @@ void App::Run()
         
         // Draw commands
         {
+            double mouseX, mouseY;
+            glfwGetCursorPos(m_Window, &mouseX, &mouseY);
+
+            m_PushConstantData.time = glfwGetTime();
+            m_PushConstantData.data[0] = m_StorageImages[0].width;
+            m_PushConstantData.data[1] = m_StorageImages[0].height;
+            m_PushConstantData.data[2] = mouseX;
+            m_PushConstantData.data[3] = mouseY;
+
+            vkCmdBindPipeline(m_ComputeCmdBuffs[m_FrameIdx], VK_PIPELINE_BIND_POINT_COMPUTE, m_Pipeline);
+            vkCmdPushConstants(m_ComputeCmdBuffs[m_FrameIdx], m_PipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(m_PushConstantData), &m_PushConstantData);
+            vkCmdBindDescriptorSets(m_ComputeCmdBuffs[m_FrameIdx], VK_PIPELINE_BIND_POINT_COMPUTE, m_PipelineLayout, 0, 1, &m_Sets[m_FrameIdx], 0, nullptr);
+
+            u32 groupX = (m_StorageImages[m_FrameIdx].width + 15) / 16;
+            u32 groupY = (m_StorageImages[m_FrameIdx].height + 15) / 16;
+
+            vkCmdDispatch(m_ComputeCmdBuffs[m_FrameIdx], groupX, groupY, 1);
+        }
+        
+        // ImGui
+        {
             ImGui::SetNextWindowDockID(ImGui::GetID("Dockspace"));
             ImGui::Begin("Main scene", nullptr, ImGuiWindowFlags_NoDecoration);
+            
+            ImGui::Image((ImTextureID)m_IgSets[m_FrameIdx], ImGui::GetContentRegionAvail(), ImVec2(0, 1), ImVec2(1, 0));
+
             ImGui::End();
         }
         
@@ -650,10 +677,12 @@ bool App::StartFrame()
     
     VK_CHECK(vkResetFences(m_Device, 1, &m_InFlightFences[m_FrameIdx]));
     VK_CHECK(vkResetCommandBuffer(m_GraphicsCmdBuffs[m_FrameIdx], 0));
+    VK_CHECK(vkResetCommandBuffer(m_ComputeCmdBuffs[m_FrameIdx], 0));
     {
         VkCommandBufferBeginInfo info{};
         info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         VK_CHECK(vkBeginCommandBuffer(m_GraphicsCmdBuffs[m_FrameIdx], &info));
+        VK_CHECK(vkBeginCommandBuffer(m_ComputeCmdBuffs[m_FrameIdx], &info));
     }
 
     VkClearValue clearColor = {};
@@ -690,19 +719,26 @@ void App::EndFrame()
 
     vkCmdEndRenderPass(m_GraphicsCmdBuffs[m_FrameIdx]);
     VK_CHECK(vkEndCommandBuffer(m_GraphicsCmdBuffs[m_FrameIdx]));
+    VK_CHECK(vkEndCommandBuffer(m_ComputeCmdBuffs[m_FrameIdx]));
 
     VkPipelineStageFlags waitStages[] = {
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
     };
-
+    
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &m_GraphicsCmdBuffs[m_FrameIdx];
+    submitInfo.pCommandBuffers = &m_ComputeCmdBuffs[m_FrameIdx];
     submitInfo.pWaitDstStageMask = waitStages;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &m_ImageAvailable[m_FrameIdx];
     submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pWaitSemaphores = &m_ImageAvailable[m_FrameIdx];
+    submitInfo.pSignalSemaphores = &m_ComputeFinished[m_FrameIdx];
+
+    VK_CHECK(vkQueueSubmit(m_ComputeQueue, 1, &submitInfo, nullptr));
+    
+    submitInfo.pCommandBuffers = &m_GraphicsCmdBuffs[m_FrameIdx];
+    submitInfo.pWaitSemaphores = &m_ComputeFinished[m_FrameIdx];
     submitInfo.pSignalSemaphores = &m_RenderFinished[m_ImageIdx];
     
     VK_CHECK(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, m_InFlightFences[m_FrameIdx]));

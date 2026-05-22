@@ -13,3 +13,8 @@ making it cross platform.
 ## Libs used
  - ImGui
  - Glfw
+
+## Notes
+
+The compute shader is translated from this wonderful shader from [here](https://www.shadertoy.com/view/4t2cRW).
+![img](./screenshot/img.png)
