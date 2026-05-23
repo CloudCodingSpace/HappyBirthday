@@ -627,8 +627,10 @@ void App::Run()
             m_PushConstantData.time = glfwGetTime();
             m_PushConstantData.data[0] = m_StorageImages[0].width;
             m_PushConstantData.data[1] = m_StorageImages[0].height;
-            m_PushConstantData.data[2] = mouseX;
-            m_PushConstantData.data[3] = mouseY;
+            if(glfwGetMouseButton(m_Window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+                m_PushConstantData.data[2] = mouseX;
+                m_PushConstantData.data[3] = mouseY;
+            }
 
             vkCmdBindPipeline(m_ComputeCmdBuffs[m_FrameIdx], VK_PIPELINE_BIND_POINT_COMPUTE, m_Pipeline);
             vkCmdPushConstants(m_ComputeCmdBuffs[m_FrameIdx], m_PipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(m_PushConstantData), &m_PushConstantData);
