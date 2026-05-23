@@ -644,8 +644,12 @@ void App::Run()
         
         // ImGui
         {
-            ImGui::SetNextWindowDockID(ImGui::GetID("Dockspace"));
-            ImGui::Begin("Main scene", nullptr, ImGuiWindowFlags_NoDecoration);
+            ImGuiWindowFlags flags =
+                ImGuiWindowFlags_NoTitleBar |
+                ImGuiWindowFlags_NoCollapse |
+                ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_NoMove;
+            ImGui::Begin("Main scene", nullptr, flags);
             
             ImGui::Image((ImTextureID)m_IgSets[m_FrameIdx], ImGui::GetContentRegionAvail(), ImVec2(0, 1), ImVec2(1, 0));
 
@@ -705,7 +709,36 @@ bool App::StartFrame()
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
-    ImGui::DockSpaceOverViewport(ImGui::GetID("Dockspace"), ImGui::GetMainViewport());
+    // Dockspace
+    ImGuiWindowFlags window_flags =
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoBringToFrontOnFocus |
+        ImGuiWindowFlags_NoNavFocus;
+
+    ImGuiDockNodeFlags dockspace_flags =
+        ImGuiDockNodeFlags_PassthruCentralNode;
+
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowViewport(viewport->ID);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+
+    ImGui::Begin("DockSpaceWindow", nullptr, window_flags);
+    ImGui::DockSpace(ImGui::GetID("MainDockSpace"), ImVec2(0.0f, 0.0f), dockspace_flags);    
+    ImGui::End();
+
+    ImGui::PopStyleVar(2);
+    
+    ImGui::SetNextWindowDockID(ImGui::GetID("MainDockSpace"), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
 
     return true;
 }
